@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <string>
 
+#include <gst/gst.h>
 
 
 namespace FW {
@@ -502,6 +503,7 @@ void PathTraceRenderer::updatePicture( Image* dest )
     }
     else
     {
+#pragma omp parallel for
         for (int i = 0; i < dest->getSize().y; ++i)
         {
             for (int j = 0; j < dest->getSize().x; ++j)

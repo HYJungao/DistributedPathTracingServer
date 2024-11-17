@@ -112,7 +112,7 @@ App::App(std::vector<std::string>& cmd_args)
 	m_window.addListener(this);
 	m_window.addListener(&m_commonCtrl);
 
-	m_window.setTitle("Assignment 3");
+	m_window.setTitle("Server");
 	m_commonCtrl.setStateFilePrefix("state_assignment3_");
 
 	m_window.setSize(Vec2i(800, 600));
