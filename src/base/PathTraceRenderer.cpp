@@ -6,9 +6,7 @@
 #include <chrono>
 #include <algorithm>
 #include <string>
-
-#include <gst/gst.h>
-
+#include <chrono>
 
 namespace FW {
 
@@ -235,7 +233,7 @@ Vec3f PathTraceRenderer::tracePath(float image_x, float image_y, PathTracerConte
         Vec3f hit2Light = lightHitPoint - hit;
         RaycastResult blockCheck = rt->raycast(hit, hit2Light);
         Vec3f brdf = evalMat(diffuse, specular, n, hit2Light, Rd, result.tri->m_material->glossiness);
-        if (blockCheck.tri == nullptr) {
+        if (blockCheck.tri == nullptr && bounce != 0) {
             float cosTheta = FW::clamp(FW::dot(hit2Light.normalized(), -light->getNormal()), 0.0f, 1.0f);
             float cosThetaY = FW::clamp(FW::dot(hit2Light.normalized(), n), 0.0f, 1.0f);
             Ei += throughput * brdf * light->getEmission() * cosTheta * cosThetaY / (hit2Light.lenSqr() * lightPdf + 0.00001);
@@ -427,6 +425,8 @@ void PathTraceRenderer::startPathTracingProcess( const MeshWithColors* scene, Ar
 
     dest->clear();
 
+    m_notDenoised = true;
+
     // Fire away!
 
     // If you change this, change the one in checkFinish too.
@@ -442,12 +442,42 @@ void PathTraceRenderer::updatePicture( Image* dest )
     FW_ASSERT( m_context.m_image != 0 );
     FW_ASSERT( m_context.m_image->getSize() == dest->getSize() );
 
+    pixelColor.resize(dest->getSize().y * dest->getSize().x);
+
+#pragma omp parallel for
+    for (int i = 0; i < dest->getSize().y; ++i)
+    {
+        for (int j = 0; j < dest->getSize().x; ++j)
+        {
+            Vec4f D = m_context.m_image->getVec4f(Vec2i(j, i));
+            pixelColor[j * dest->getSize().y + i] = pColor{ D.x, D.y, D.z };
+
+            if (D.w != 0.0f)
+                D = D * (1.0f / D.w);
+
+            // Gamma correction.
+            Vec4f color = Vec4f(
+                FW::pow(D.x, 1.0f / 2.2f),
+                FW::pow(D.y, 1.0f / 2.2f),
+                FW::pow(D.z, 1.0f / 2.2f),
+                D.w
+            );
+
+            dest->setVec4f(Vec2i(j, i), color);
+        }
+    }
+}
+
+void PathTraceRenderer::denoise(Image* dest)
+{
     if (m_JBF) {
         int kernel = m_kernel;
         constexpr float inv_sigmaPlane = 1.f / (2.f * 0.1f * 0.1f);
         constexpr float inv_sigmaColor = 1.f / (2.f * 0.6f * 0.6f);
         constexpr float inv_sigmaNormal = 1.f / (2.f * 0.1f * 0.1f);
         constexpr float inv_sigmaCoord = 1.f / (2.f * 32.0f * 32.0f);
+
+        pixelColor.resize(dest->getSize().y * dest->getSize().x);
 
 #pragma omp parallel for
         for (int i = 0; i < dest->getSize().y; ++i)
@@ -486,29 +516,8 @@ void PathTraceRenderer::updatePicture( Image* dest )
 
                 D = D.lenSqr() == 0 ? m_context.m_image->getVec4f(Vec2i(j, i)) : D / D_weight;
 
-                if (D.w != 0.0f)
-                    D = D * (1.0f / D.w);
+                pixelColor[j * dest->getSize().y + i] = pColor{ D.x, D.y, D.z };
 
-                // Gamma correction.
-                Vec4f color = Vec4f(
-                    FW::pow(D.x, 1.0f / 2.2f),
-                    FW::pow(D.y, 1.0f / 2.2f),
-                    FW::pow(D.z, 1.0f / 2.2f),
-                    D.w
-                );
-
-                dest->setVec4f(Vec2i(j, i), color);
-            }
-        }
-    }
-    else
-    {
-#pragma omp parallel for
-        for (int i = 0; i < dest->getSize().y; ++i)
-        {
-            for (int j = 0; j < dest->getSize().x; ++j)
-            {
-                Vec4f D = m_context.m_image->getVec4f(Vec2i(j, i));
                 if (D.w != 0.0f)
                     D = D * (1.0f / D.w);
 
@@ -542,19 +551,19 @@ void PathTraceRenderer::checkFinish()
         //File outfile( fn, File::Create );
         //exportLodePngImage( outfile, m_context.m_destImage );
 
-        if ( !m_context.m_bForceExit )
-        {
-            // keep going
+        //if ( !m_context.m_bForceExit )
+        //{
+        //    // keep going
 
-            // If you change this, change the one in startPathTracingProcess too.
-            m_launcher.setNumThreads(m_launcher.getNumCores());
-            //m_launcher.setNumThreads(1);
+        //    // If you change this, change the one in startPathTracingProcess too.
+        //    m_launcher.setNumThreads(m_launcher.getNumCores());
+        //    //m_launcher.setNumThreads(1);
 
-            m_launcher.popAll();
-            m_launcher.push( pathTraceBlock, &m_context, 0, (int)m_context.m_blocks.size() );
-            //::printf( "Next pass!" );
-        }
-        else ::printf( "Stopped." );
+        //    m_launcher.popAll();
+        //    m_launcher.push( pathTraceBlock, &m_context, 0, (int)m_context.m_blocks.size() );
+        //    //::printf( "Next pass!" );
+        //}
+        //else ::printf( "Stopped." );
     }
 }
 

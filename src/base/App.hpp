@@ -15,6 +15,7 @@
 #include "AreaLight.hpp"
 #include "PathTraceRenderer.hpp"
 
+#include <zmq.hpp>
 
 namespace FW {
 
@@ -168,6 +169,9 @@ private:
     int                                 m_kernel;
     int                                 m_spp;
 
+public:
+    zmq::context_t m_context;
+    zmq::socket_t m_socket;
 };
 
 

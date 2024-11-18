@@ -125,6 +125,10 @@ App::App(std::vector<std::string>& cmd_args)
 
 	m_commonCtrl.loadState(m_commonCtrl.getStateFileName(1));
 	m_timer.start();
+
+	m_context = zmq::context_t(1);
+	m_socket = zmq::socket_t(m_context, zmq::socket_type::pub);
+	m_socket.bind("tcp://*:5557");
 }
 
 // returns the index of the needle in the haystack or -1 if not found
@@ -567,6 +571,23 @@ void App::renderFrame(GLContext* gl)
 
 			// restart cycle
 			m_updateClock.start();
+		}
+		else if (m_pathtrace_renderer->m_notDenoised)
+		{
+			m_pathtrace_renderer->m_notDenoised = false;
+			m_pathtrace_renderer->denoise(&m_img);
+
+			//int aa[3] = { 1,2,3 };
+			//int siz = sizeof(aa) / sizeof(int);
+			//zmq::message_t message(3 * sizeof(int));
+			//std::memcpy(message.data(), aa, 3 * sizeof(int));
+			//m_socket.send(message, zmq::send_flags::none);
+
+			zmq::message_t message(m_pathtrace_renderer->pixelColor.size() * sizeof(pColor));
+			std::memcpy(message.data(), m_pathtrace_renderer->pixelColor.data(), m_pathtrace_renderer->pixelColor.size() * sizeof(pColor));
+			m_socket.send(message, zmq::send_flags::none);
+
+			std::cout << "Frame sent!" << std::endl;
 		}
 
 		gl->drawImage(m_img, Vec2f(0));
