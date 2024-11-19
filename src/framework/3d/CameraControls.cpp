@@ -205,6 +205,46 @@ bool CameraControls::handleEvent(const Window::Event& ev)
     return false;
 }
 
+void CameraControls::applyClientMovement(Vec3f& rotate, Vec3f& move)
+{
+
+    Mat3f orient = getOrientation();
+
+    // Apply movement.
+
+    if (m_enableMovement)
+    {
+        if (!move.isZero())
+            m_position += orient * move;
+
+        if (rotate.x != 0.0f || rotate.y != 0.0f)
+        {
+            Vec3f tmp = orient.col(2) * cos(rotate.x) - orient.col(0) * sin(rotate.x);
+            m_forward = (orient.col(1) * sin(rotate.y) - tmp * cos(rotate.y)).normalized();
+            if (!m_keepAligned)
+                m_up = (orient.col(1) * cos(rotate.y) + tmp * sin(rotate.y)).normalized();
+            else if (-m_forward.cross(m_up).dot(tmp.cross(m_up).normalized()) < s_inclinationLimit)
+                m_forward = -tmp.normalized();
+        }
+
+        if (rotate.z != 0.0f && !m_keepAligned)
+        {
+            Vec3f up = orient.transposed() * m_up;
+            m_up = orient * Vec3f(up.x * cos(rotate.z) - sin(rotate.z), up.x * sin(rotate.z) + up.y * cos(rotate.z), up.z);
+        }
+    }
+
+    // Apply alignment.
+
+    if (m_alignY)
+        m_up = Vec3f(0.0f, 1.0f, 0.0f);
+    m_alignY = false;
+
+    if (m_alignZ)
+        m_up = Vec3f(0.0f, 0.0f, 1.0f);
+    m_alignZ = false;
+}
+
 //------------------------------------------------------------------------
 
 void CameraControls::readState(StateDump& d)

@@ -28,6 +28,7 @@
 #pragma once
 #include "gui/CommonControls.hpp"
 #include "base/Timer.hpp"
+#include <zmq.hpp>
 
 namespace FW
 {
@@ -150,6 +151,9 @@ private:
     bool                m_enableStereo;
     F32                 m_stereoSeparation;
     F32                 m_stereoConvergence;
+
+public:
+    void CameraControls::applyClientMovement(Vec3f& rotate, Vec3f& move);
 };
 
 //------------------------------------------------------------------------

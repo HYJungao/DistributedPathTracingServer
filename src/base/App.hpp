@@ -172,6 +172,10 @@ private:
 public:
     zmq::context_t m_context;
     zmq::socket_t m_socket;
+
+public:
+    zmq::context_t m_inputSubContext;
+    zmq::socket_t m_inputSubSocket;
 };
 
 

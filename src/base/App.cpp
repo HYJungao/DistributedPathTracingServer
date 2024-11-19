@@ -44,6 +44,15 @@ App::App(std::vector<std::string>& cmd_args)
 	m_img(Vec2i(10, 10), ImageFormat::RGBA_Vec4f) // will get resized immediately
 {
 
+	// input sub socket
+	m_inputSubContext = zmq::context_t(1);
+	m_inputSubSocket = zmq::socket_t(m_inputSubContext, zmq::socket_type::sub);
+	m_inputSubSocket.connect("tcp://localhost:5555");
+	m_inputSubSocket.set(zmq::sockopt::subscribe, "");
+
+
+	// -------------------------------
+
 	m_commonCtrl.showFPS(true);
 	m_commonCtrl.addStateObject(this);
 	m_cameraCtrl.setKeepAligned(true);
@@ -477,7 +486,15 @@ bool App::handleEvent(const Window::Event& ev)
 		}
 	}
 
-
+	// handle received input
+	zmq::message_t message;
+	bool received = m_inputSubSocket.recv(message, zmq::recv_flags::dontwait).has_value();
+	if (received) {
+		// std::cout << "received input" << std::endl;
+		Vec3f movement[2];
+		memcpy(movement, message.data(), message.size());
+		m_cameraCtrl.applyClientMovement(movement[0], movement[1]);
+	}
 
 	m_window.setVisible(true);
 
