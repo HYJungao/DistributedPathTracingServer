@@ -50,6 +50,11 @@ App::App(std::vector<std::string>& cmd_args)
 	m_inputSubSocket.connect("tcp://localhost:5555");
 	m_inputSubSocket.set(zmq::sockopt::subscribe, "");
 
+	// status socket for monitoring connection/disconnection
+	m_socketStatusContext = zmq::context_t(1);
+	m_socketStatusSocket = zmq::socket_t(m_socketStatusContext, zmq::socket_type::dealer);
+	m_socketStatusSocket.setsockopt(ZMQ_IDENTITY, "Server1");
+	m_socketStatusSocket.connect("tcp://localhost:5556");
 
 	// -------------------------------
 
@@ -134,6 +139,21 @@ App::App(std::vector<std::string>& cmd_args)
 
 	m_commonCtrl.loadState(m_commonCtrl.getStateFileName(1));
 	m_timer.start();
+
+	// send connection status to client, including port (6000-7000) and ip
+	std::string message = "tcp://localhost:" + std::to_string(rand() % 1001 + 6000);
+	m_socketStatusSocket.send(zmq::buffer(message), zmq::send_flags::none);
+	// std::cout << "Sent: " << message << std::endl;
+	// 
+	// initialize camera status
+	zmq::message_t cameraState;
+	m_socketStatusSocket.recv(cameraState, zmq::recv_flags::none);
+	Vec3f cameraPos[3];
+	memcpy(cameraPos, cameraState.data(), cameraState.size());
+	m_cameraCtrl.setPosition(cameraPos[0]);
+	m_cameraCtrl.setForward(cameraPos[1]);
+	m_cameraCtrl.setUp(cameraPos[2]);
+	// std::cout << "Received: " << reply.to_string() << std::endl;
 
 	m_context = zmq::context_t(1);
 	m_socket = zmq::socket_t(m_context, zmq::socket_type::pub);

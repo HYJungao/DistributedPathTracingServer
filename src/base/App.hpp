@@ -176,6 +176,9 @@ public:
 public:
     zmq::context_t m_inputSubContext;
     zmq::socket_t m_inputSubSocket;
+
+    zmq::context_t m_socketStatusContext;
+    zmq::socket_t m_socketStatusSocket;
 };
 
 

@@ -71,11 +71,11 @@ public:
     virtual void        writeState          (StateDump& d) const;
 
     const Vec3f&        getPosition         (void) const        { return m_position; }
-    void                setPosition         (const Vec3f& v)    { m_position = v; repaint(); }
+    void                setPosition         (const Vec3f& v)    { m_position = v; }
     const Vec3f&        getForward          (void) const        { return m_forward; }
-    void                setForward          (const Vec3f& v)    { m_forward = v; repaint(); }
+    void                setForward          (const Vec3f& v)    { m_forward = v; }
     const Vec3f&        getUp               (void) const        { return m_up; }
-    void                setUp               (const Vec3f& v)    { m_up = v; repaint(); }
+    void                setUp               (const Vec3f& v)    { m_up = v; }
     bool                getKeepAligned      (void) const        { return m_keepAligned; }
     void                setKeepAligned      (bool v)            { m_keepAligned = v; }
     F32                 getSpeed            (void) const        { return m_speed; }
