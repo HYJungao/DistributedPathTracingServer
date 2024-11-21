@@ -26,6 +26,16 @@ using namespace FW;
 
 //------------------------------------------------------------------------
 
+struct control {
+	bool m_RTMode;
+	bool m_JBF;
+	bool m_normalMapped;
+	bool m_useRussianRoulette;
+	int m_kernel;
+	int m_spp_server;
+	int m_numBounces;
+};
+
 bool fileExists(std::string fileName)
 {
 	return std::ifstream(fileName).good();
@@ -43,6 +53,7 @@ App::App(std::vector<std::string>& cmd_args)
 	m_normalMapped(false),
 	m_img(Vec2i(10, 10), ImageFormat::RGBA_Vec4f) // will get resized immediately
 {
+	int random_n = rand() % 1001 + 6000;
 
 	// input sub socket
 	m_inputSubContext = zmq::context_t(1);
@@ -53,7 +64,7 @@ App::App(std::vector<std::string>& cmd_args)
 	// status socket for monitoring connection/disconnection
 	m_socketStatusContext = zmq::context_t(1);
 	m_socketStatusSocket = zmq::socket_t(m_socketStatusContext, zmq::socket_type::dealer);
-	m_socketStatusSocket.setsockopt(ZMQ_IDENTITY, "Server1");
+	m_socketStatusSocket.setsockopt(ZMQ_IDENTITY, "Server" + std::to_string(random_n));
 	m_socketStatusSocket.connect("tcp://localhost:5556");
 
 	// -------------------------------
@@ -65,40 +76,40 @@ App::App(std::vector<std::string>& cmd_args)
 	m_JBF = false;
 	m_kernel = 8;
 	m_spp = 8;
-	m_commonCtrl.addToggle(&m_JBF, FW_KEY_NONE, "Enable Joint Bilateral Filtering(slow)");
-	m_commonCtrl.beginSliderStack();
-	m_commonCtrl.addSlider(&m_kernel, 1, 64, false, FW_KEY_NONE, FW_KEY_NONE, "Kernel Size of Joint Bilateral Filtering= %d", 0, &clear_on_next_frame);
-	m_commonCtrl.addSlider(&m_spp, 1, 512, false, FW_KEY_NONE, FW_KEY_NONE, "Sample Per Pixel= %d", 0, &clear_on_next_frame);
-	m_commonCtrl.endSliderStack();
+	//m_commonCtrl.addToggle(&m_JBF, FW_KEY_NONE, "Enable Joint Bilateral Filtering(slow)");
+	//m_commonCtrl.beginSliderStack();
+	//m_commonCtrl.addSlider(&m_kernel, 1, 64, false, FW_KEY_NONE, FW_KEY_NONE, "Kernel Size of Joint Bilateral Filtering= %d", 0, &clear_on_next_frame);
+	//m_commonCtrl.addSlider(&m_spp, 1, 512, false, FW_KEY_NONE, FW_KEY_NONE, "Sample Per Pixel= %d", 0, &clear_on_next_frame);
+	//m_commonCtrl.endSliderStack();
 
-	m_commonCtrl.addButton((S32*)&m_action, Action_LoadMesh, FW_KEY_M, "Load mesh or state... (M)");
-	m_commonCtrl.addButton((S32*)&m_action, Action_ReloadMesh, FW_KEY_F5, "Reload mesh (F5)");
-	m_commonCtrl.addButton((S32*)&m_action, Action_SaveMesh, FW_KEY_O, "Save mesh... (O)");
-	m_commonCtrl.addButton((S32*)&m_action, Action_LoadBVH, FW_KEY_NONE, "Load BVH from file...");
-	m_commonCtrl.addSeparator();
+	//m_commonCtrl.addButton((S32*)&m_action, Action_LoadMesh, FW_KEY_M, "Load mesh or state... (M)");
+	//m_commonCtrl.addButton((S32*)&m_action, Action_ReloadMesh, FW_KEY_F5, "Reload mesh (F5)");
+	//m_commonCtrl.addButton((S32*)&m_action, Action_SaveMesh, FW_KEY_O, "Save mesh... (O)");
+	//m_commonCtrl.addButton((S32*)&m_action, Action_LoadBVH, FW_KEY_NONE, "Load BVH from file...");
+	//m_commonCtrl.addSeparator();
 
-	m_commonCtrl.addButton((S32*)&m_action, Action_ResetCamera, FW_KEY_NONE, "Reset camera");
-	m_commonCtrl.addButton((S32*)&m_action, Action_EncodeCameraSignature, FW_KEY_NONE, "Encode camera signature");
-	m_commonCtrl.addButton((S32*)&m_action, Action_DecodeCameraSignature, FW_KEY_NONE, "Decode camera signature...");
+	//m_commonCtrl.addButton((S32*)&m_action, Action_ResetCamera, FW_KEY_NONE, "Reset camera");
+	//m_commonCtrl.addButton((S32*)&m_action, Action_EncodeCameraSignature, FW_KEY_NONE, "Encode camera signature");
+	//m_commonCtrl.addButton((S32*)&m_action, Action_DecodeCameraSignature, FW_KEY_NONE, "Decode camera signature...");
 	m_window.addListener(&m_cameraCtrl);
-	m_commonCtrl.addSeparator();
+	//m_commonCtrl.addSeparator();
 
-	m_commonCtrl.addButton((S32*)&m_action, Action_NormalizeScale, FW_KEY_NONE, "Normalize scale");
+	//m_commonCtrl.addButton((S32*)&m_action, Action_NormalizeScale, FW_KEY_NONE, "Normalize scale");
 	//    m_commonCtrl.addButton((S32*)&m_action, Action_FlipXY,                  FW_KEY_NONE,    "Flip X/Y");
 	//    m_commonCtrl.addButton((S32*)&m_action, Action_FlipYZ,                  FW_KEY_NONE,    "Flip Y/Z");
 	//    m_commonCtrl.addButton((S32*)&m_action, Action_FlipZ,                   FW_KEY_NONE,    "Flip Z");
-	m_commonCtrl.addSeparator();
+	//m_commonCtrl.addSeparator();
 
-	m_commonCtrl.addButton((S32*)&m_action, Action_NormalizeNormals, FW_KEY_NONE, "Normalize normals");
-	m_commonCtrl.addButton((S32*)&m_action, Action_FlipNormals, FW_KEY_NONE, "Flip normals");
-	m_commonCtrl.addButton((S32*)&m_action, Action_RecomputeNormals, FW_KEY_NONE, "Recompute normals");
-	m_commonCtrl.addSeparator();
+	//m_commonCtrl.addButton((S32*)&m_action, Action_NormalizeNormals, FW_KEY_NONE, "Normalize normals");
+	//m_commonCtrl.addButton((S32*)&m_action, Action_FlipNormals, FW_KEY_NONE, "Flip normals");
+	//m_commonCtrl.addButton((S32*)&m_action, Action_RecomputeNormals, FW_KEY_NONE, "Recompute normals");
+	//m_commonCtrl.addSeparator();
 
-	m_commonCtrl.addToggle((S32*)&m_cullMode, CullMode_None, FW_KEY_NONE, "Disable backface culling");
-	m_commonCtrl.addToggle((S32*)&m_cullMode, CullMode_CW, FW_KEY_NONE, "Cull clockwise faces");
-	m_commonCtrl.addToggle((S32*)&m_cullMode, CullMode_CCW, FW_KEY_NONE, "Cull counter-clockwise faces");
-	m_commonCtrl.addButton((S32*)&m_action, Action_FlipTriangles, FW_KEY_NONE, "Flip triangles");
-	m_commonCtrl.addSeparator();
+	//m_commonCtrl.addToggle((S32*)&m_cullMode, CullMode_None, FW_KEY_NONE, "Disable backface culling");
+	//m_commonCtrl.addToggle((S32*)&m_cullMode, CullMode_CW, FW_KEY_NONE, "Cull clockwise faces");
+	//m_commonCtrl.addToggle((S32*)&m_cullMode, CullMode_CCW, FW_KEY_NONE, "Cull counter-clockwise faces");
+	//m_commonCtrl.addButton((S32*)&m_action, Action_FlipTriangles, FW_KEY_NONE, "Flip triangles");
+	//m_commonCtrl.addSeparator();
 
 	//    m_commonCtrl.addButton((S32*)&m_action, Action_CleanMesh,               FW_KEY_NONE,    "Remove unused materials, denegerate triangles, and unreferenced vertices");
 	//    m_commonCtrl.addButton((S32*)&m_action, Action_CollapseVertices,        FW_KEY_NONE,    "Collapse duplicate vertices");
@@ -108,20 +119,20 @@ App::App(std::vector<std::string>& cmd_args)
 	//    m_commonCtrl.addButton((S32*)&m_action, Action_ChopBehindNear,          FW_KEY_NONE,    "Chop triangles behind near plane");
 	//    m_commonCtrl.addSeparator();
 
-	m_commonCtrl.addButton((S32*)&m_action, Action_PathTraceMode, FW_KEY_ENTER, "Path trace mode (ENTER)");
-	m_commonCtrl.addButton((S32*)&m_action, Action_PlaceLightSourceAtCamera, FW_KEY_SPACE, "Place light at camera (SPACE)", &clear_on_next_frame);
-	m_commonCtrl.addButton(&m_clearVisualization, FW_KEY_BACKSPACE, "Clear visualization (BACKSPACE)");
-	m_commonCtrl.addToggle(&m_useRussianRoulette, FW_KEY_NONE, "Use Russian Roulette", &clear_on_next_frame);
-	m_commonCtrl.addToggle(&m_normalMapped, FW_KEY_NONE, "Use normal mapping", &clear_on_next_frame);
-	m_commonCtrl.addToggle(&m_playbackVisualization, FW_KEY_NONE, "Visualization playback");
-	m_commonCtrl.beginSliderStack();
-	m_commonCtrl.addSlider(&m_numBounces, 0, 8, false, FW_KEY_NONE, FW_KEY_NONE, "Number of indirect bounces= %d", 0, &clear_on_next_frame);
-	m_commonCtrl.addSlider(&m_lightSize, 0.01f, 200.0f, false, FW_KEY_NONE, FW_KEY_NONE, "Light source area= %f", 0, &clear_on_next_frame);
-	m_commonCtrl.endSliderStack();
-	m_commonCtrl.beginSliderStack();
-	m_commonCtrl.addSlider(&m_numDebugPathCount, 1, 1000, false, FW_KEY_NONE, FW_KEY_NONE, "Number of debug paths to fire= %d");
-	m_commonCtrl.addSlider(&m_visualizationAlpha, 0.01f, 1.0f, false, FW_KEY_NONE, FW_KEY_NONE, "Debug ray visualization alpha= %f");
-	m_commonCtrl.endSliderStack();
+	//m_commonCtrl.addButton((S32*)&m_action, Action_PathTraceMode, FW_KEY_ENTER, "Path trace mode (ENTER)");
+	//m_commonCtrl.addButton((S32*)&m_action, Action_PlaceLightSourceAtCamera, FW_KEY_SPACE, "Place light at camera (SPACE)", &clear_on_next_frame);
+	//m_commonCtrl.addButton(&m_clearVisualization, FW_KEY_BACKSPACE, "Clear visualization (BACKSPACE)");
+	//m_commonCtrl.addToggle(&m_useRussianRoulette, FW_KEY_NONE, "Use Russian Roulette", &clear_on_next_frame);
+	//m_commonCtrl.addToggle(&m_normalMapped, FW_KEY_NONE, "Use normal mapping", &clear_on_next_frame);
+	//m_commonCtrl.addToggle(&m_playbackVisualization, FW_KEY_NONE, "Visualization playback");
+	//m_commonCtrl.beginSliderStack();
+	//m_commonCtrl.addSlider(&m_numBounces, 0, 8, false, FW_KEY_NONE, FW_KEY_NONE, "Number of indirect bounces= %d", 0, &clear_on_next_frame);
+	//m_commonCtrl.addSlider(&m_lightSize, 0.01f, 200.0f, false, FW_KEY_NONE, FW_KEY_NONE, "Light source area= %f", 0, &clear_on_next_frame);
+	//m_commonCtrl.endSliderStack();
+	//m_commonCtrl.beginSliderStack();
+	//m_commonCtrl.addSlider(&m_numDebugPathCount, 1, 1000, false, FW_KEY_NONE, FW_KEY_NONE, "Number of debug paths to fire= %d");
+	//m_commonCtrl.addSlider(&m_visualizationAlpha, 0.01f, 1.0f, false, FW_KEY_NONE, FW_KEY_NONE, "Debug ray visualization alpha= %f");
+	//m_commonCtrl.endSliderStack();
 
 	m_window.addListener(this);
 	m_window.addListener(&m_commonCtrl);
@@ -141,10 +152,10 @@ App::App(std::vector<std::string>& cmd_args)
 	m_timer.start();
 
 	// send connection status to client, including port (6000-7000) and ip
-	std::string message = "tcp://localhost:" + std::to_string(rand() % 1001 + 6000);
+	std::string message = "tcp://localhost:" + std::to_string(random_n);
 	m_socketStatusSocket.send(zmq::buffer(message), zmq::send_flags::none);
 	// std::cout << "Sent: " << message << std::endl;
-	// 
+
 	// initialize camera status
 	zmq::message_t cameraState;
 	m_socketStatusSocket.recv(cameraState, zmq::recv_flags::none);
@@ -510,10 +521,44 @@ bool App::handleEvent(const Window::Event& ev)
 	zmq::message_t message;
 	bool received = m_inputSubSocket.recv(message, zmq::recv_flags::dontwait).has_value();
 	if (received) {
-		// std::cout << "received input" << std::endl;
-		Vec3f movement[2];
-		memcpy(movement, message.data(), message.size());
-		m_cameraCtrl.applyClientMovement(movement[0], movement[1]);
+		switch (message.size()) {
+			case 2 * sizeof(Vec3f) : {
+				// std::cout << "received input" << std::endl;
+				Vec3f movement[2];
+				memcpy(movement, message.data(), message.size());
+				m_cameraCtrl.applyClientMovement(movement[0], movement[1]);
+				break;
+			}
+			case sizeof(bool) :
+				m_RTMode = false;
+				m_pathtrace_renderer->stop();
+				break;
+			case sizeof(control) : {
+				control ctl;
+				memcpy(&ctl, message.data(), message.size());
+				m_RTMode = ctl.m_RTMode;
+				m_JBF = ctl.m_JBF;
+				m_normalMapped = ctl.m_normalMapped;
+				m_useRussianRoulette = ctl.m_useRussianRoulette;
+				m_kernel = ctl.m_kernel;
+				m_spp = ctl.m_spp_server;
+				m_numBounces = ctl.m_numBounces;
+				m_pathtrace_renderer->stop();
+				if (m_img.getSize() != m_window.getSize())
+				{
+					// Replace m_img with a new Image. TODO: Clean this up.
+					m_img.~Image();
+					new (&m_img) Image(m_window.getSize(), ImageFormat::RGBA_Vec4f);	// placement new, will get autodestructed
+				}
+				m_pathtrace_renderer->setNormalMapped(m_normalMapped);
+				m_pathtrace_renderer->setJBF(m_JBF);
+				m_pathtrace_renderer->setKernel(m_kernel);
+				m_pathtrace_renderer->setSPP(m_spp);
+				m_pathtrace_renderer->startPathTracingProcess(m_mesh.get(), m_areaLight.get(), m_rt.get(), &m_img, m_useRussianRoulette ? -m_numBounces : m_numBounces, m_cameraCtrl);
+				break;
+			}
+		}
+
 	}
 
 	m_window.setVisible(true);
