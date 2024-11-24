@@ -52,6 +52,11 @@ struct InitialState
 	int m_numBounces;
 };
 
+struct LightControl {
+	Vec3f position;
+	Mat3f orientation;
+};
+
 bool fileExists(std::string fileName)
 {
 	return std::ifstream(fileName).good();
@@ -586,6 +591,13 @@ bool App::handleEvent(const Window::Event& ev)
 				m_pathtrace_renderer->setKernel(m_kernel);
 				m_pathtrace_renderer->setSPP(m_spp);
 				m_pathtrace_renderer->startPathTracingProcess(m_mesh.get(), m_areaLight.get(), m_rt.get(), &m_img, m_useRussianRoulette ? -m_numBounces : m_numBounces, m_cameraCtrl);
+				break;
+			}
+			case sizeof(LightControl) : {
+				LightControl temp;
+				memcpy(&temp, message.data(), message.size());
+				m_areaLight->setPosition(temp.position);
+				m_areaLight->setOrientation(temp.orientation);
 				break;
 			}
 			default: {
