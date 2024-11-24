@@ -153,7 +153,7 @@ private:
     F32                 m_stereoConvergence;
 
 public:
-    void CameraControls::applyClientMovement(Vec3f& rotate, Vec3f& move);
+    void CameraControls::applyClientMovement(Vec3f& rotate, Vec3f& move, F32 fov);
 };
 
 //------------------------------------------------------------------------

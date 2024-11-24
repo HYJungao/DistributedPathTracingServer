@@ -205,8 +205,9 @@ bool CameraControls::handleEvent(const Window::Event& ev)
     return false;
 }
 
-void CameraControls::applyClientMovement(Vec3f& rotate, Vec3f& move)
+void CameraControls::applyClientMovement(Vec3f& rotate, Vec3f& move, F32 fov)
 {
+    m_fov = fov;
 
     Mat3f orient = getOrientation();
 

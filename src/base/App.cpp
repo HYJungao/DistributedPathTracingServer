@@ -43,6 +43,7 @@ struct InitialState
 	Vec3f m_up;
 	Vec3f m_lightPosition;
 	Mat3f m_lightOrientation;
+	F32 m_fov;
 	bool m_RTMode;
 	bool m_JBF;
 	bool m_normalMapped;
@@ -190,6 +191,7 @@ App::App(std::vector<std::string>& cmd_args)
 	m_cameraCtrl.setPosition(state.m_position);
 	m_cameraCtrl.setForward(state.m_forward);
 	m_cameraCtrl.setUp(state.m_up);
+	m_cameraCtrl.setFOV(state.m_fov);
 	m_areaLight->setPosition(state.m_lightPosition);
 	m_areaLight->setOrientation(state.m_lightOrientation);
 	m_RTMode = state.m_RTMode;
@@ -553,26 +555,36 @@ bool App::handleEvent(const Window::Event& ev)
 		}
 	}
 
+	//std::cout << sizeof(CameraControl) << std::endl;
+	//std::cout << sizeof(bool) << std::endl;
+	//std::cout << 2 * sizeof(bool) << std::endl;
+	//std::cout << sizeof(control) << std::endl;
+	//std::cout << sizeof(LightControl) << std::endl;
+	//ExitProcess(0);
+
 	// handle received input
 	zmq::message_t message;
 	bool received = m_inputSubSocket.recv(message, zmq::recv_flags::dontwait).has_value();
 	if (received) {
 		switch (message.size()) {
-			case 2 * sizeof(Vec3f) : {
-				// std::cout << "received input" << std::endl;
-				Vec3f movement[2];
-				memcpy(movement, message.data(), message.size());
-				m_cameraCtrl.applyClientMovement(movement[0], movement[1]);
+		case sizeof(CameraControl) : {
+				// case = 28
+				CameraControl movement;
+				memcpy(&movement, message.data(), message.size());
+				m_cameraCtrl.applyClientMovement(movement.rotate, movement.move, movement.fov);
 				break;
 			}
 			case sizeof(bool) :
+				// case = 1
 				m_RTMode = false;
 				m_pathtrace_renderer->stop();
 				break;
-			case 2*sizeof(bool):
+			case 2 * sizeof(bool):
+				// case = 2
 				m_window.showModalMessage("Exiting...");
 				ExitProcess(0);
 			case sizeof(control) : {
+				// case = 16
 				control ctl;
 				memcpy(&ctl, message.data(), message.size());
 				m_RTMode = ctl.m_RTMode;
@@ -597,6 +609,7 @@ bool App::handleEvent(const Window::Event& ev)
 				break;
 			}
 			case sizeof(LightControl) : {
+				// case = 48
 				LightControl temp;
 				memcpy(&temp, message.data(), message.size());
 				m_areaLight->setPosition(temp.position);

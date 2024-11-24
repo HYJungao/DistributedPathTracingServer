@@ -19,6 +19,11 @@
 
 namespace FW {
 
+struct CameraControl {
+    Vec3f rotate;
+    Vec3f move;
+    F32 fov;
+};
 
 //------------------------------------------------------------------------
 
