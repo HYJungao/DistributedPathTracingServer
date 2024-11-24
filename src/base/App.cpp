@@ -569,6 +569,9 @@ bool App::handleEvent(const Window::Event& ev)
 				m_RTMode = false;
 				m_pathtrace_renderer->stop();
 				break;
+			case 2*sizeof(bool):
+				m_window.showModalMessage("Exiting...");
+				ExitProcess(0);
 			case sizeof(control) : {
 				control ctl;
 				memcpy(&ctl, message.data(), message.size());
