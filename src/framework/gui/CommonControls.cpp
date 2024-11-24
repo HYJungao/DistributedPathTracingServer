@@ -165,8 +165,8 @@ bool CommonControls::handleEvent(const Window::Event& ev)
                 {
                     if (idx == 0)
                         loadStateDialog();
-                    else
-                        loadState(getStateFileName(idx));
+                    //else
+                    //    loadState(getStateFileName(idx));
                 }
                 else if (m_window->isKeyDown(FW_KEY_ALT) && hasFeature(Feature_SaveStateOnAltNum) && m_stateObjs.getSize())
                 {

@@ -36,6 +36,22 @@ struct control {
 	int m_numBounces;
 };
 
+struct InitialState
+{
+	Vec3f m_position;
+	Vec3f m_forward;
+	Vec3f m_up;
+	Vec3f m_lightPosition;
+	Mat3f m_lightOrientation;
+	bool m_RTMode;
+	bool m_JBF;
+	bool m_normalMapped;
+	bool m_useRussianRoulette;
+	int m_kernel;
+	int m_spp_server;
+	int m_numBounces;
+};
+
 bool fileExists(std::string fileName)
 {
 	return std::ifstream(fileName).good();
@@ -146,29 +162,44 @@ App::App(std::vector<std::string>& cmd_args)
 
 	process_args(cmd_args);
 
-
-
-	m_commonCtrl.loadState(m_commonCtrl.getStateFileName(1));
-	m_timer.start();
-
 	// send connection status to client, including port (6000-7000) and ip
 	std::string message = "tcp://localhost:" + std::to_string(random_n);
 	m_socketStatusSocket.send(zmq::buffer(message), zmq::send_flags::none);
 	// std::cout << "Sent: " << message << std::endl;
 
+	// initialize scene
+	zmq::message_t stateMessage;
+	m_socketStatusSocket.recv(stateMessage, zmq::recv_flags::none);
+	InitialState state;
+	memcpy(&state, stateMessage.data(), sizeof(InitialState));
+	String scene(static_cast<const char*>(stateMessage.data()) + sizeof(InitialState));
+
+	if (scene.getLength() == 0) {
+		m_commonCtrl.loadState(m_commonCtrl.getStateFileName(1));
+	}
+	else {
+		m_commonCtrl.loadState(scene);
+	}
+
 	// initialize camera status
-	zmq::message_t cameraState;
-	m_socketStatusSocket.recv(cameraState, zmq::recv_flags::none);
-	Vec3f cameraPos[3];
-	memcpy(cameraPos, cameraState.data(), cameraState.size());
-	m_cameraCtrl.setPosition(cameraPos[0]);
-	m_cameraCtrl.setForward(cameraPos[1]);
-	m_cameraCtrl.setUp(cameraPos[2]);
-	// std::cout << "Received: " << reply.to_string() << std::endl;
+	m_cameraCtrl.setPosition(state.m_position);
+	m_cameraCtrl.setForward(state.m_forward);
+	m_cameraCtrl.setUp(state.m_up);
+	m_areaLight->setPosition(state.m_lightPosition);
+	m_areaLight->setOrientation(state.m_lightOrientation);
+	m_RTMode = state.m_RTMode;
+	m_JBF = state.m_JBF;
+	m_normalMapped = state.m_normalMapped;
+	m_useRussianRoulette = state.m_useRussianRoulette;
+	m_kernel = state.m_kernel;
+	m_spp = state.m_spp_server;
+	m_numBounces = state.m_numBounces;
 
 	m_context = zmq::context_t(1);
 	m_socket = zmq::socket_t(m_context, zmq::socket_type::pub);
 	m_socket.bind("tcp://*:5557");
+
+	m_timer.start();
 }
 
 // returns the index of the needle in the haystack or -1 if not found
@@ -556,6 +587,10 @@ bool App::handleEvent(const Window::Event& ev)
 				m_pathtrace_renderer->setSPP(m_spp);
 				m_pathtrace_renderer->startPathTracingProcess(m_mesh.get(), m_areaLight.get(), m_rt.get(), &m_img, m_useRussianRoulette ? -m_numBounces : m_numBounces, m_cameraCtrl);
 				break;
+			}
+			default: {
+				String temp(message.to_string().c_str());
+				m_commonCtrl.loadState(temp);
 			}
 		}
 
