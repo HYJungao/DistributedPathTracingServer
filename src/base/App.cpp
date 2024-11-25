@@ -560,6 +560,7 @@ bool App::handleEvent(const Window::Event& ev)
 	//std::cout << 2 * sizeof(bool) << std::endl;
 	//std::cout << sizeof(control) << std::endl;
 	//std::cout << sizeof(LightControl) << std::endl;
+	//std::cout << sizeof(Vec2f) << std::endl;
 	//ExitProcess(0);
 
 	// handle received input
@@ -614,6 +615,13 @@ bool App::handleEvent(const Window::Event& ev)
 				memcpy(&temp, message.data(), message.size());
 				m_areaLight->setPosition(temp.position);
 				m_areaLight->setOrientation(temp.orientation);
+				break;
+			}
+			case sizeof(Vec2f) : {
+				// case = 8
+				Vec2f tmp;
+				memcpy(&tmp, message.data(), message.size());
+				m_window.setSize(tmp);
 				break;
 			}
 			default: {
