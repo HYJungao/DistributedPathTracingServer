@@ -184,6 +184,8 @@ public:
 
     zmq::context_t m_socketStatusContext;
     zmq::socket_t m_socketStatusSocket;
+
+    std::string guid;
 };
 
 

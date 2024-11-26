@@ -20,6 +20,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <objbase.h>
 
 using namespace FW;
 
@@ -63,6 +64,23 @@ bool fileExists(std::string fileName)
 	return std::ifstream(fileName).good();
 }
 
+std::string GuidToString(const GUID& guid) {
+	std::ostringstream oss;
+	oss << std::uppercase
+		<< std::hex << std::setw(8) << std::setfill('0') << guid.Data1 << "-"
+		<< std::setw(4) << std::setfill('0') << guid.Data2 << "-"
+		<< std::setw(4) << std::setfill('0') << guid.Data3 << "-"
+		<< std::setw(2) << std::setfill('0') << (int)guid.Data4[0]
+		<< std::setw(2) << std::setfill('0') << (int)guid.Data4[1] << "-"
+		<< std::setw(2) << std::setfill('0') << (int)guid.Data4[2]
+		<< std::setw(2) << std::setfill('0') << (int)guid.Data4[3]
+		<< std::setw(2) << std::setfill('0') << (int)guid.Data4[4]
+		<< std::setw(2) << std::setfill('0') << (int)guid.Data4[5]
+		<< std::setw(2) << std::setfill('0') << (int)guid.Data4[6]
+		<< std::setw(2) << std::setfill('0') << (int)guid.Data4[7];
+	return oss.str();
+}
+
 App::App(std::vector<std::string>& cmd_args)
 	: m_commonCtrl(CommonControls::Feature_Default & ~CommonControls::Feature_RepaintOnF5),
 	m_cameraCtrl(&m_commonCtrl, CameraControls::Feature_Default | CameraControls::Feature_StereoControls),
@@ -75,7 +93,9 @@ App::App(std::vector<std::string>& cmd_args)
 	m_normalMapped(false),
 	m_img(Vec2i(10, 10), ImageFormat::RGBA_Vec4f) // will get resized immediately
 {
-	int random_n = rand() % 1001 + 6000;
+	GUID guidTemp;
+	HRESULT hr = CoCreateGuid(&guidTemp);
+	guid = GuidToString(guidTemp);
 
 	// input sub socket
 	m_inputSubContext = zmq::context_t(1);
@@ -86,7 +106,7 @@ App::App(std::vector<std::string>& cmd_args)
 	// status socket for monitoring connection/disconnection
 	m_socketStatusContext = zmq::context_t(1);
 	m_socketStatusSocket = zmq::socket_t(m_socketStatusContext, zmq::socket_type::dealer);
-	m_socketStatusSocket.setsockopt(ZMQ_IDENTITY, "Server" + std::to_string(random_n));
+	m_socketStatusSocket.set(zmq::sockopt::routing_id, guid);
 	m_socketStatusSocket.connect("tcp://localhost:5556");
 
 	// -------------------------------
@@ -169,7 +189,7 @@ App::App(std::vector<std::string>& cmd_args)
 	process_args(cmd_args);
 
 	// send connection status to client, including port (6000-7000) and ip
-	std::string message = "tcp://localhost:" + std::to_string(random_n);
+	std::string message = "tcp://localhost:";
 	m_socketStatusSocket.send(zmq::buffer(message), zmq::send_flags::none);
 	// std::cout << "Sent: " << message << std::endl;
 
@@ -204,7 +224,7 @@ App::App(std::vector<std::string>& cmd_args)
 
 	m_context = zmq::context_t(1);
 	m_socket = zmq::socket_t(m_context, zmq::socket_type::pub);
-	m_socket.bind("tcp://*:5557");
+	// m_socket.bind("tcp://*:5557");
 
 	m_timer.start();
 }
@@ -562,6 +582,13 @@ bool App::handleEvent(const Window::Event& ev)
 	//std::cout << sizeof(LightControl) << std::endl;
 	//std::cout << sizeof(Vec2f) << std::endl;
 	//ExitProcess(0);
+
+	zmq::message_t heartBeat;
+	bool hasBeat = m_socketStatusSocket.recv(heartBeat, zmq::recv_flags::dontwait).has_value();
+	if (hasBeat) {
+		std::cout << "receive heart beat check" << std::endl;
+		m_socketStatusSocket.send(zmq::buffer("live"), zmq::send_flags::none);
+	}
 
 	// handle received input
 	zmq::message_t message;
