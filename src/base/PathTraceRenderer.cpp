@@ -14,6 +14,8 @@ namespace FW {
     bool PathTraceRenderer::m_JBF = false;
     int PathTraceRenderer::m_kernel = 8;
     int PathTraceRenderer::m_spp = 8;
+    int PathTraceRenderer::m_blockNum = 1;
+    int PathTraceRenderer::m_blockId = 0;
 	bool PathTraceRenderer::debugVis = false;
     float PathTraceRenderer::m_revPI = (1 / FW_PI);
 
@@ -399,22 +401,25 @@ void PathTraceRenderer::startPathTracingProcess( const MeshWithColors* scene, Ar
         int block_size = 32;
         int image_width = dest->getSize().x;
         int image_height = dest->getSize().y;
+        int vBlockHeight = image_height / m_blockNum;
+        int vBlockStart = m_blockId * vBlockHeight;
+        int vHeight = m_blockId == m_blockNum - 1 ? image_height - vBlockStart : vBlockHeight;
         int block_count_x = (image_width + block_size - 1) / block_size;
-        int block_count_y = (image_height + block_size - 1) / block_size;
+        int block_count_y = (vHeight + block_size - 1) / block_size;
 
-        for(int y = 0; y < block_count_y; ++y) {
-            int block_start_y = y * block_size;
-            int block_end_y = FW::min(block_start_y + block_size, image_height);
+        for (int y = 0; y < block_count_y; ++y) {
+            int block_start_y = y * block_size + vBlockStart;
+            int block_end_y = FW::min(block_start_y + block_size, vBlockStart + vHeight);
             int block_height = block_end_y - block_start_y;
 
-            for(int x = 0; x < block_count_x; ++x) {
+            for (int x = 0; x < block_count_x; ++x) {
                 int block_start_x = x * block_size;
                 int block_end_x = FW::min(block_start_x + block_size, image_width);
                 int block_width = block_end_x - block_start_x;
 
                 PathTracerBlock block;
                 block.m_x = block_size * x;
-                block.m_y = block_size * y;
+                block.m_y = block_size * y + vBlockStart;
                 block.m_width = block_width;
                 block.m_height = block_height;
 

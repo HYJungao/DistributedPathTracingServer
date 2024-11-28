@@ -118,6 +118,8 @@ public:
     void				setJBF(bool b) { m_JBF = b; }
     void				setKernel(int b) { m_kernel = b; }
     void				setSPP(int b) { m_spp = b; }
+    void				setBlockNum(int b) { m_blockNum = b; }
+    void				setBlockId(int b) { m_blockId = b; }
 
 protected:
     __int64						m_s64TotalRays;
@@ -129,6 +131,8 @@ protected:
     static bool					m_JBF;
     static int                  m_kernel;
     static int                  m_spp;
+    static int                  m_blockNum;
+    static int                  m_blockId;
 
     static float                m_revPI;
 

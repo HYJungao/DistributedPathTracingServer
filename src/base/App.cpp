@@ -53,6 +53,8 @@ struct InitialState
 	int m_kernel;
 	int m_spp_server;
 	int m_numBounces;
+	int m_blockId = 0;
+	int m_blockNum = 0;
 };
 
 struct LightControl {
@@ -224,6 +226,8 @@ App::App(std::vector<std::string>& cmd_args)
 	m_kernel = state.m_kernel;
 	m_spp = state.m_spp_server;
 	m_numBounces = state.m_numBounces;
+	m_blockId = state.m_blockId;
+	m_blockNum = state.m_blockNum;
 
 	m_context = zmq::context_t(1);
 	m_socket = zmq::socket_t(m_context, zmq::socket_type::pub);
@@ -533,25 +537,25 @@ bool App::handleEvent(const Window::Event& ev)
 
 	case Action_PathTraceMode:
 		m_RTMode = !m_RTMode;
-		if (m_RTMode)
-		{
-			m_pathtrace_renderer->stop();
-			if (m_img.getSize() != m_window.getSize())
-			{
-				// Replace m_img with a new Image. TODO: Clean this up.
-				m_img.~Image();
-				new (&m_img) Image(m_window.getSize(), ImageFormat::RGBA_Vec4f);	// placement new, will get autodestructed
-			}
-			m_pathtrace_renderer->setNormalMapped(m_normalMapped);
-			m_pathtrace_renderer->setJBF(m_JBF);
-			m_pathtrace_renderer->setKernel(m_kernel);
-			m_pathtrace_renderer->setSPP(m_spp);
-			m_pathtrace_renderer->startPathTracingProcess(m_mesh.get(), m_areaLight.get(), m_rt.get(), &m_img, m_useRussianRoulette ? -m_numBounces : m_numBounces, m_cameraCtrl);
-		}
-		else
-		{
-			m_pathtrace_renderer->stop();
-		}
+		//if (m_RTMode)
+		//{
+		//	m_pathtrace_renderer->stop();
+		//	if (m_img.getSize() != m_window.getSize())
+		//	{
+		//		// Replace m_img with a new Image. TODO: Clean this up.
+		//		m_img.~Image();
+		//		new (&m_img) Image(m_window.getSize(), ImageFormat::RGBA_Vec4f);	// placement new, will get autodestructed
+		//	}
+		//	m_pathtrace_renderer->setNormalMapped(m_normalMapped);
+		//	m_pathtrace_renderer->setJBF(m_JBF);
+		//	m_pathtrace_renderer->setKernel(m_kernel);
+		//	m_pathtrace_renderer->setSPP(m_spp);
+		//	m_pathtrace_renderer->startPathTracingProcess(m_mesh.get(), m_areaLight.get(), m_rt.get(), &m_img, m_useRussianRoulette ? -m_numBounces : m_numBounces, m_cameraCtrl);
+		//}
+		//else
+		//{
+		//	m_pathtrace_renderer->stop();
+		//}
 		break;
 	default:
 		FW_ASSERT(false);
@@ -560,22 +564,22 @@ bool App::handleEvent(const Window::Event& ev)
 
 	if (ev.type == Window::EventType_KeyUp)
 	{
-		if (ev.key == FW_KEY_CONTROL)
-		{
-			Vec2i pos = ev.mousePos;
-			m_pathtrace_renderer->stop();
-			m_visualization.clear();
-			m_pathtrace_renderer->debugVis = true;
+		//if (ev.key == FW_KEY_CONTROL)
+		//{
+		//	Vec2i pos = ev.mousePos;
+		//	m_pathtrace_renderer->stop();
+		//	m_visualization.clear();
+		//	m_pathtrace_renderer->debugVis = true;
 
-			Random rnd;
-			Vec3f nn;
-			Vec3f position;
-			for (int i = 0; i < m_numDebugPathCount; ++i)
-				m_pathtrace_renderer->tracePath(pos.x, pos.y, m_pathtrace_renderer->m_context, -1, rnd, m_visualization, nn, position);
+		//	Random rnd;
+		//	Vec3f nn;
+		//	Vec3f position;
+		//	for (int i = 0; i < m_numDebugPathCount; ++i)
+		//		m_pathtrace_renderer->tracePath(pos.x, pos.y, m_pathtrace_renderer->m_context, -1, rnd, m_visualization, nn, position);
 
-			m_pathtrace_renderer->debugVis = false;
-			m_RTMode = false;
-		}
+		//	m_pathtrace_renderer->debugVis = false;
+		//	m_RTMode = false;
+		//}
 	}
 
 	//std::cout << sizeof(CameraControl) << std::endl;
@@ -584,13 +588,28 @@ bool App::handleEvent(const Window::Event& ev)
 	//std::cout << sizeof(control) << std::endl;
 	//std::cout << sizeof(LightControl) << std::endl;
 	//std::cout << sizeof(Vec2f) << std::endl;
+	//std::cout << sizeof(int) << std::endl;
 	//ExitProcess(0);
 
 	zmq::message_t heartBeat;
 	bool hasBeat = m_socketStatusSocket.recv(heartBeat, zmq::recv_flags::dontwait).has_value();
 	if (hasBeat) {
-		std::cout << "receive heart beat check" << std::endl;
-		m_socketStatusSocket.send(zmq::buffer("live"), zmq::send_flags::none);
+		switch (heartBeat.size()) {
+			case sizeof(2 * sizeof(int)) : {
+				memcpy(&m_blockId, heartBeat.data(), sizeof(int));
+				memcpy(&m_blockNum, static_cast<int*>(heartBeat.data()) + 1, sizeof(int));
+				// std::cout << m_blockId << "   " << m_blockNum << std::endl;
+				if (m_RTMode) {
+					startRendering();
+				}
+				m_socketStatusSocket.send(zmq::buffer("1"), zmq::send_flags::none);
+				break;
+			}
+			default: {
+				// std::cout << heartBeat.to_string() << std::endl;
+				m_socketStatusSocket.send(zmq::buffer("1"), zmq::send_flags::none);
+			}
+		}
 	}
 
 	// handle received input
@@ -598,7 +617,7 @@ bool App::handleEvent(const Window::Event& ev)
 	bool received = m_inputSubSocket.recv(message, zmq::recv_flags::dontwait).has_value();
 	if (received) {
 		switch (message.size()) {
-		case sizeof(CameraControl) : {
+			case sizeof(CameraControl) : {
 				// case = 28
 				CameraControl movement;
 				memcpy(&movement, message.data(), message.size());
@@ -625,18 +644,7 @@ bool App::handleEvent(const Window::Event& ev)
 				m_kernel = ctl.m_kernel;
 				m_spp = ctl.m_spp_server;
 				m_numBounces = ctl.m_numBounces;
-				m_pathtrace_renderer->stop();
-				if (m_img.getSize() != m_window.getSize())
-				{
-					// Replace m_img with a new Image. TODO: Clean this up.
-					m_img.~Image();
-					new (&m_img) Image(m_window.getSize(), ImageFormat::RGBA_Vec4f);	// placement new, will get autodestructed
-				}
-				m_pathtrace_renderer->setNormalMapped(m_normalMapped);
-				m_pathtrace_renderer->setJBF(m_JBF);
-				m_pathtrace_renderer->setKernel(m_kernel);
-				m_pathtrace_renderer->setSPP(m_spp);
-				m_pathtrace_renderer->startPathTracingProcess(m_mesh.get(), m_areaLight.get(), m_rt.get(), &m_img, m_useRussianRoulette ? -m_numBounces : m_numBounces, m_cameraCtrl);
+				startRendering();
 				break;
 			}
 			case sizeof(LightControl) : {
@@ -652,6 +660,14 @@ bool App::handleEvent(const Window::Event& ev)
 				Vec2f tmp;
 				memcpy(&tmp, message.data(), message.size());
 				m_window.setSize(tmp);
+				break;
+			}
+			case sizeof(int) : {
+				// case = 4
+				memcpy(&m_blockNum, message.data(), message.size());
+				if (m_RTMode) {
+					startRendering();
+				}
 				break;
 			}
 			default: {
@@ -714,6 +730,24 @@ void App::waitKey(void)
 	printf("\n\n");
 }
 
+void App::startRendering()
+{
+	m_pathtrace_renderer->stop();
+	if (m_img.getSize() != m_window.getSize())
+	{
+		// Replace m_img with a new Image. TODO: Clean this up.
+		m_img.~Image();
+		new (&m_img) Image(m_window.getSize(), ImageFormat::RGBA_Vec4f);	// placement new, will get autodestructed
+	}
+	m_pathtrace_renderer->setNormalMapped(m_normalMapped);
+	m_pathtrace_renderer->setJBF(m_JBF);
+	m_pathtrace_renderer->setKernel(m_kernel);
+	m_pathtrace_renderer->setSPP(m_spp);
+	m_pathtrace_renderer->setBlockId(m_blockId);
+	m_pathtrace_renderer->setBlockNum(m_blockNum);
+	m_pathtrace_renderer->startPathTracingProcess(m_mesh.get(), m_areaLight.get(), m_rt.get(), &m_img, m_useRussianRoulette ? -m_numBounces : m_numBounces, m_cameraCtrl);
+}
+
 //------------------------------------------------------------------------
 
 void App::renderFrame(GLContext* gl)
@@ -729,16 +763,7 @@ void App::renderFrame(GLContext* gl)
 		previous_camera = worldToClip;
 		clear_on_next_frame = false;
 
-		m_pathtrace_renderer->stop();
-
-		if (m_img.getSize() != m_window.getSize())
-		{
-			// Replace m_img with a new Image. TODO: Clean this up.
-			m_img.~Image();
-			new (&m_img) Image(m_window.getSize(), ImageFormat::RGBA_Vec4f);	// placement new, will get autodestructed
-		}
-
-		m_pathtrace_renderer->startPathTracingProcess(m_mesh.get(), m_areaLight.get(), m_rt.get(), &m_img, m_useRussianRoulette ? -m_numBounces : m_numBounces, m_cameraCtrl);
+		startRendering();
 	}
 
 	glClearColor(0.2f, 0.4f, 0.8f, 1.0f);

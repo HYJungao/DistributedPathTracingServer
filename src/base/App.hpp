@@ -128,6 +128,7 @@ private:
 	void			constructTracer(void);
 
 	void			blitRttToScreen(GLContext* gl);
+    void            startRendering();
 
 
 private:
@@ -173,6 +174,8 @@ private:
     bool                                m_JBF;
     int                                 m_kernel;
     int                                 m_spp;
+    int                                 m_blockNum;
+    int                                 m_blockId;
 
 public:
     zmq::context_t m_context;
