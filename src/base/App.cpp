@@ -44,6 +44,7 @@ struct InitialState
 	Vec3f m_up;
 	Vec3f m_lightPosition;
 	Mat3f m_lightOrientation;
+	Vec2f m_size;
 	F32 m_fov;
 	bool m_RTMode;
 	bool m_JBF;
@@ -182,7 +183,7 @@ App::App(std::vector<std::string>& cmd_args)
 	m_window.setTitle("Server");
 	m_commonCtrl.setStateFilePrefix("state_assignment3_");
 
-	m_window.setSize(Vec2i(800, 600));
+	
 	m_pathtrace_renderer.reset(new PathTraceRenderer);
 	m_areaLight.reset(new AreaLight);
 
@@ -199,6 +200,8 @@ App::App(std::vector<std::string>& cmd_args)
 	InitialState state;
 	memcpy(&state, stateMessage.data(), sizeof(InitialState));
 	String scene(static_cast<const char*>(stateMessage.data()) + sizeof(InitialState));
+
+	m_window.setSize(state.m_size);
 
 	if (scene.getLength() == 0) {
 		m_commonCtrl.loadState(m_commonCtrl.getStateFileName(1));
