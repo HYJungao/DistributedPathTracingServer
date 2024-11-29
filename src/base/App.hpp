@@ -178,15 +178,14 @@ private:
     int                                 m_blockId;
 
 public:
-    zmq::context_t m_context;
-    zmq::socket_t m_socket;
-
-public:
     zmq::context_t m_inputSubContext;
     zmq::socket_t m_inputSubSocket;
 
     zmq::context_t m_socketStatusContext;
     zmq::socket_t m_socketStatusSocket;
+
+    zmq::context_t m_frameSocketContext;
+    zmq::socket_t m_frameSocket;
 
     std::string guid;
 };

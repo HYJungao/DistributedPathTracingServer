@@ -110,6 +110,7 @@ public:
 	static void			getTextureParameters(const RaycastResult& hit, Vec3f& diffuse, Vec3f& n, Vec3f& specular);
     void				updatePicture						( Image* display );	// normalize by 1/w
     void				denoise(Image* display);
+    void				copyRenderedFrame(Image* display);
     void				checkFinish							( void );
     void				stop								( void );
 	void				setNormalMapped						( bool b ){ m_normalMapped = b; }
@@ -138,7 +139,7 @@ protected:
 
 public:
     bool m_notDenoised = false;
-    std::vector<pColor> pixelColor;
+    static std::vector<pColor> pixelColor;
 };
 
 }	// namespace FW

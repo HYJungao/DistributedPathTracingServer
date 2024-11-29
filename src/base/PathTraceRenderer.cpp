@@ -18,6 +18,7 @@ namespace FW {
     int PathTraceRenderer::m_blockId = 0;
 	bool PathTraceRenderer::debugVis = false;
     float PathTraceRenderer::m_revPI = (1 / FW_PI);
+    std::vector<pColor> PathTraceRenderer::pixelColor;
 
 	void PathTraceRenderer::getTextureParameters(const RaycastResult& hit, Vec3f& diffuse, Vec3f& n, Vec3f& specular)
 	{
@@ -397,13 +398,15 @@ void PathTraceRenderer::startPathTracingProcess( const MeshWithColors* scene, Ar
 
     // Add rendering blocks.
     m_context.m_blocks.clear();
+
+    int block_size = 32;
+    int image_width = dest->getSize().x;
+    int image_height = dest->getSize().y;
+    int vBlockHeight = image_height / m_blockNum;
+    int vBlockStart = m_blockId * vBlockHeight;
+    int vHeight = m_blockId == m_blockNum - 1 ? image_height - vBlockStart : vBlockHeight;
+
     {
-        int block_size = 32;
-        int image_width = dest->getSize().x;
-        int image_height = dest->getSize().y;
-        int vBlockHeight = image_height / m_blockNum;
-        int vBlockStart = m_blockId * vBlockHeight;
-        int vHeight = m_blockId == m_blockNum - 1 ? image_height - vBlockStart : vBlockHeight;
         int block_count_x = (image_width + block_size - 1) / block_size;
         int block_count_y = (vHeight + block_size - 1) / block_size;
 
@@ -433,6 +436,7 @@ void PathTraceRenderer::startPathTracingProcess( const MeshWithColors* scene, Ar
     m_notDenoised = true;
 
     // Fire away!
+    pixelColor.resize(vHeight * dest->getSize().x);
 
     // If you change this, change the one in checkFinish too.
     m_launcher.setNumThreads(m_launcher.getNumCores());
@@ -447,15 +451,12 @@ void PathTraceRenderer::updatePicture( Image* dest )
     FW_ASSERT( m_context.m_image != 0 );
     FW_ASSERT( m_context.m_image->getSize() == dest->getSize() );
 
-    pixelColor.resize(dest->getSize().y * dest->getSize().x);
-
 #pragma omp parallel for
     for (int i = 0; i < dest->getSize().y; ++i)
     {
         for (int j = 0; j < dest->getSize().x; ++j)
         {
             Vec4f D = m_context.m_image->getVec4f(Vec2i(j, i));
-            pixelColor[j * dest->getSize().y + i] = pColor{ D.x, D.y, D.z };
 
             if (D.w != 0.0f)
                 D = D * (1.0f / D.w);
@@ -473,6 +474,38 @@ void PathTraceRenderer::updatePicture( Image* dest )
     }
 }
 
+void PathTraceRenderer::copyRenderedFrame(Image* dest)
+{
+    int image_height = dest->getSize().y;
+    int vBlockHeight = image_height / m_blockNum;
+    int vBlockStart = m_blockId * vBlockHeight;
+    int vHeight = m_blockId == m_blockNum - 1 ? image_height - vBlockStart : vBlockHeight;
+
+#pragma omp parallel for
+    for (int i = 0; i < vHeight; ++i)
+    {
+        for (int j = 0; j < dest->getSize().x; ++j)
+        {
+            Vec4f D = m_context.m_image->getVec4f(Vec2i(j, i + vBlockStart));
+            pixelColor[i * dest->getSize().x + j] = pColor{ D.x, D.y, D.z };
+
+            // only for test
+            //if (D.w != 0.0f)
+            //    D = D * (1.0f / D.w);
+
+            //// Gamma correction.
+            //Vec4f color = Vec4f(
+            //    FW::pow(D.x, 1.0f / 2.2f),
+            //    FW::pow(D.y, 1.0f / 2.2f),
+            //    FW::pow(D.z, 1.0f / 2.2f),
+            //    D.w
+            //);
+
+            //dest->setVec4f(Vec2i(j, i + vBlockStart), color);
+        }
+    }
+}
+
 void PathTraceRenderer::denoise(Image* dest)
 {
     if (m_JBF) {
@@ -482,21 +515,24 @@ void PathTraceRenderer::denoise(Image* dest)
         constexpr float inv_sigmaNormal = 1.f / (2.f * 0.1f * 0.1f);
         constexpr float inv_sigmaCoord = 1.f / (2.f * 32.0f * 32.0f);
 
-        pixelColor.resize(dest->getSize().y * dest->getSize().x);
+        int image_height = dest->getSize().y;
+        int vBlockHeight = image_height / m_blockNum;
+        int vBlockStart = m_blockId * vBlockHeight;
+        int vHeight = m_blockId == m_blockNum - 1 ? image_height - vBlockStart : vBlockHeight;
 
 #pragma omp parallel for
-        for (int i = 0; i < dest->getSize().y; ++i)
+        for (int i = 0; i < vHeight; ++i)
         {
             for (int j = 0; j < dest->getSize().x; ++j)
             {
                 int x_start = max(0, j - kernel);
                 int x_end = min(dest->getSize().x - 1, j + kernel);
-                int y_start = max(0, i - kernel);
-                int y_end = min(dest->getSize().y - 1, i + kernel);
+                int y_start = max(0, i - kernel) + vBlockStart;
+                int y_end = min(vHeight - 1, i + kernel) + vBlockStart;
 
-                Vec4f cc = m_context.m_image->getVec4f(Vec2i(j, i));
-                Vec3f nn = m_context.m_normal->getVec4f(Vec2i(j, i)).getXYZ();
-                Vec3f pos = m_context.m_position->getVec4f(Vec2i(j, i)).getXYZ();
+                Vec4f cc = m_context.m_image->getVec4f(Vec2i(j, i + vBlockStart));
+                Vec3f nn = m_context.m_normal->getVec4f(Vec2i(j, i + vBlockStart)).getXYZ();
+                Vec3f pos = m_context.m_position->getVec4f(Vec2i(j, i + vBlockStart)).getXYZ();
                 Vec4f D(0);
                 float D_weight = 0;
 
@@ -505,7 +541,7 @@ void PathTraceRenderer::denoise(Image* dest)
                         Vec4f tmp_cc = m_context.m_image->getVec4f(Vec2i(x, y));
                         Vec3f tmp_nn = m_context.m_normal->getVec4f(Vec2i(x, y)).getXYZ();
                         Vec3f tmp_pos = m_context.m_position->getVec4f(Vec2i(x, y)).getXYZ();
-                        float dis_pos = (Vec2i(j, i) - Vec2i(x, y)).lenSqr() * inv_sigmaCoord;
+                        float dis_pos = (Vec2i(j, i + vBlockStart) - Vec2i(x, y)).lenSqr() * inv_sigmaCoord;
                         float dis_color = (cc - tmp_cc).lenSqr() * inv_sigmaColor;
                         float dis_n = acos(min(max(dot(nn, tmp_nn), 0.f), 1.f));
                         dis_n = dis_n * dis_n * inv_sigmaNormal;
@@ -519,9 +555,7 @@ void PathTraceRenderer::denoise(Image* dest)
                     }
                 }
 
-                D = D.lenSqr() == 0 ? m_context.m_image->getVec4f(Vec2i(j, i)) : D / D_weight;
-
-                pixelColor[j * dest->getSize().y + i] = pColor{ D.x, D.y, D.z };
+                D = D.lenSqr() == 0 ? m_context.m_image->getVec4f(Vec2i(j, i + vBlockStart)) : D / D_weight;
 
                 if (D.w != 0.0f)
                     D = D * (1.0f / D.w);
@@ -534,7 +568,7 @@ void PathTraceRenderer::denoise(Image* dest)
                     D.w
                 );
 
-                dest->setVec4f(Vec2i(j, i), color);
+                dest->setVec4f(Vec2i(j, i + vBlockStart), color);
             }
         }
     }

@@ -100,17 +100,28 @@ App::App(std::vector<std::string>& cmd_args)
 	HRESULT hr = CoCreateGuid(&guidTemp);
 	guid = GuidToString(guidTemp);
 
+	std::string ip = "localhost";
+
 	// input sub socket
+	std::string inputBroadcastSocket = "tcp://" + ip + ":5555";
 	m_inputSubContext = zmq::context_t(1);
 	m_inputSubSocket = zmq::socket_t(m_inputSubContext, zmq::socket_type::sub);
-	m_inputSubSocket.connect("tcp://localhost:5555");
+	m_inputSubSocket.connect(inputBroadcastSocket);
 	m_inputSubSocket.set(zmq::sockopt::subscribe, "");
 
 	// status socket for monitoring connection/disconnection
+	std::string statusSocket = "tcp://" + ip + ":5556";
 	m_socketStatusContext = zmq::context_t(1);
 	m_socketStatusSocket = zmq::socket_t(m_socketStatusContext, zmq::socket_type::dealer);
 	m_socketStatusSocket.set(zmq::sockopt::routing_id, guid);
-	m_socketStatusSocket.connect("tcp://localhost:5556");
+	m_socketStatusSocket.connect(statusSocket);
+
+	// rendered frame broadcast scoket
+	std::string frameSocket = "tcp://" + ip + ":5557";
+	m_frameSocketContext = zmq::context_t(1);
+	m_frameSocket = zmq::socket_t(m_frameSocketContext, zmq::socket_type::dealer);
+	m_frameSocket.set(zmq::sockopt::routing_id, guid);
+	m_frameSocket.connect(frameSocket);
 
 	// -------------------------------
 
@@ -228,10 +239,6 @@ App::App(std::vector<std::string>& cmd_args)
 	m_numBounces = state.m_numBounces;
 	m_blockId = state.m_blockId;
 	m_blockNum = state.m_blockNum;
-
-	m_context = zmq::context_t(1);
-	m_socket = zmq::socket_t(m_context, zmq::socket_type::pub);
-	// m_socket.bind("tcp://*:5557");
 
 	m_timer.start();
 }
@@ -784,16 +791,11 @@ void App::renderFrame(GLContext* gl)
 		{
 			m_pathtrace_renderer->m_notDenoised = false;
 			m_pathtrace_renderer->denoise(&m_img);
-
-			//int aa[3] = { 1,2,3 };
-			//int siz = sizeof(aa) / sizeof(int);
-			//zmq::message_t message(3 * sizeof(int));
-			//std::memcpy(message.data(), aa, 3 * sizeof(int));
-			//m_socket.send(message, zmq::send_flags::none);
+			m_pathtrace_renderer->copyRenderedFrame(&m_img);
 
 			zmq::message_t message(m_pathtrace_renderer->pixelColor.size() * sizeof(pColor));
 			std::memcpy(message.data(), m_pathtrace_renderer->pixelColor.data(), m_pathtrace_renderer->pixelColor.size() * sizeof(pColor));
-			m_socket.send(message, zmq::send_flags::none);
+			// m_socket.send(message, zmq::send_flags::none);
 
 			std::cout << "Frame sent!" << std::endl;
 		}
