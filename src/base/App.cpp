@@ -793,9 +793,9 @@ void App::renderFrame(GLContext* gl)
 			m_pathtrace_renderer->denoise(&m_img);
 			m_pathtrace_renderer->copyRenderedFrame(&m_img);
 
-			zmq::message_t message(m_pathtrace_renderer->pixelColor.size() * sizeof(pColor));
-			std::memcpy(message.data(), m_pathtrace_renderer->pixelColor.data(), m_pathtrace_renderer->pixelColor.size() * sizeof(pColor));
-			// m_socket.send(message, zmq::send_flags::none);
+			zmq::message_t frame(m_pathtrace_renderer->pixelColor.size() * sizeof(pColor));
+			std::memcpy(frame.data(), m_pathtrace_renderer->pixelColor.data(), m_pathtrace_renderer->pixelColor.size() * sizeof(pColor));
+			m_frameSocket.send(frame, zmq::send_flags::none);
 
 			std::cout << "Frame sent!" << std::endl;
 		}
