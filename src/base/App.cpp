@@ -797,7 +797,7 @@ void App::renderFrame(GLContext* gl)
 			std::memcpy(frame.data(), m_pathtrace_renderer->pixelColor.data(), m_pathtrace_renderer->pixelColor.size() * sizeof(pColor));
 			m_frameSocket.send(frame, zmq::send_flags::none);
 
-			std::cout << "Frame sent!" << std::endl;
+			// std::cout << "Frame sent!" << std::endl;
 		}
 
 		gl->drawImage(m_img, Vec2f(0));
